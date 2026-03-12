@@ -51,7 +51,7 @@ class KinovaRobot(KinovaRobotTemplate):
 
         return ee, Hlist
 
-    def calc_inverse_kinematics(self, ee, _, soln=0):
+    def calc_inverse_kinematics(self, ee, joint_values, soln=0):
         l1, l2, l3, l4, l5, l6, l7 = (
             self.l1,
             self.l2,
@@ -73,14 +73,13 @@ class KinovaRobot(KinovaRobotTemplate):
         forearm = abs(l4 + l5)
 
         for sol_idx in range(4):
-            th1_front = atan2(p_wrist[1], p_wrist[0]) + (pi / 2)
-            th1 = th1_front if sol_idx < 2 else th1_front - pi
-            plane = np.linalg.norm([p_wrist[0], p_wrist[1]])
+            if sol_idx < 2:
+                th1 = -atan2(p_wrist[1], p_wrist[0])
+                plane = sqrt(p_wrist[0] ** 2 + p_wrist[1] ** 2)
+            else:
+                th1 = -atan2(-p_wrist[1], -p_wrist[0])
+                plane = -sqrt(p_wrist[0] ** 2 + p_wrist[1] ** 2)
             z_rel = p_wrist[2] - d_shoulder
-
-            if sol_idx >= 2:
-                plane = -plane
-
             L_sq = plane**2 + z_rel**2
 
             ratio = (upper_arm**2 + forearm**2 - L_sq) / (2 * upper_arm * forearm)
@@ -88,41 +87,24 @@ class KinovaRobot(KinovaRobotTemplate):
 
             th3 = (beta - pi) if sol_idx % 2 == 0 else (pi - beta)
             alpha = atan2(forearm * sin(th3), upper_arm + forearm * cos(th3))
-            gamma = atan2(z_rel, plane)
-            th2 = gamma - alpha
+            psi = atan2(z_rel, plane)
+            th2 = ut.wraptopi(pi / 2 - psi + alpha)
 
-            dh_tables = np.array(
-                [
-                    [th1, -(l1 + l2), 0, (np.pi / 2)],
-                    [th2 - (np.pi / 2), 0, l3, np.pi],
-                    [th3 - (np.pi / 2), 0, 0, (np.pi / 2)],
-                ]
-            )
-            R03 = np.eye(3)
-            for table in dh_tables:
-                theta = table[0]
-                a = table[3]
-                T = np.array(
-                    [
-                        [cos(theta), -sin(theta) * cos(a), sin(theta) * sin(a)],
-                        [sin(theta), cos(theta) * cos(a), -cos(theta) * sin(a)],
-                        [0, sin(a), cos(a)],
-                    ]
-                )
-                R03 = R03 @ T
+            R_B0 = ut.dh_to_matrix([0, 0, 0, pi])[:3, :3]
+            R_01 = ut.dh_to_matrix([th1, -(l1 + l2), 0, pi / 2])[:3, :3]
+            R_12 = ut.dh_to_matrix([th2 - (pi / 2), 0, l3, pi])[:3, :3]
+            R_23 = ut.dh_to_matrix([th3 - (pi / 2), 0, 0, pi / 2])[:3, :3]
+            R03 = R_B0 @ R_01 @ R_12 @ R_23
 
             R36 = R03.T @ R06
-            th5_pos = atan2(
-                sqrt(np.clip(R36[0, 2] ** 2 + R36[1, 2] ** 2, 0, 1)), R36[2, 2]
-            )
-            th5_neg = atan2(
-                -sqrt(np.clip(R36[0, 2] ** 2 + R36[1, 2] ** 2, 0, 1)), R36[2, 2]
-            )
+            c5 = -R36[2, 2]
+            th5_pos = atan2(sqrt(1 - c5**2), c5)
+            th5_neg = atan2(-sqrt(1 - c5**2), c5)
 
             for th5 in [th5_pos, th5_neg]:
                 if abs(sin(th5)) > 1e-6:
                     th4 = atan2(R36[1, 2], R36[0, 2])
-                    th6 = atan2(R36[2, 1], -R36[2, 0])
+                    th6 = atan2(R36[2, 1], R36[2, 0])
                 else:
                     th4 = 0
                     th6 = atan2(-R36[0, 1], R36[0, 0])
@@ -142,7 +124,7 @@ class KinovaRobot(KinovaRobotTemplate):
 
         if not new_joint_list:
             print("IK failed to find a valid solution")
-            return [0.0] * 6
+            return joint_values
 
         joint_value = new_joint_list[min(soln, len(new_joint_list) - 1)]
         return joint_value
