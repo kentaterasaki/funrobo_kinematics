@@ -1,7 +1,6 @@
 from math import *
 import numpy as np
 import funrobo_kinematics.core.utils as ut
-from funrobo_kinematics.core.visualizer import Visualizer, RobotSim
 from funrobo_kinematics.core.arm_models import FiveDOFRobotTemplate
 
 
@@ -20,10 +19,10 @@ class Hiwonder(FiveDOFRobotTemplate):
             self.l4,
             self.l5,
         )
-        dh_01 = [th1 - (pi / 2), l1, 0, (pi / 2)]
-        dh_12 = [th2 + (pi / 2), 0, l2, 0]
-        dh_23 = [th3, 0, l3, 0]
-        dh_34 = [th4 - (pi / 2), 0, 0, -(pi / 2)]
+        dh_01 = [th1, l1, 0, -(pi / 2)]
+        dh_12 = [th2 - (pi / 2), 0, l2, pi]
+        dh_23 = [th3, 0, l3, pi]
+        dh_34 = [(pi / 2) + th4, 0, 0, (pi / 2)]
         dh_45 = [th5, l4 + l5, 0, 0]
         dh_tables = [dh_01, dh_12, dh_23, dh_34, dh_45]
         H_matrix = np.eye(4)
@@ -116,14 +115,17 @@ class Hiwonder(FiveDOFRobotTemplate):
         """
         return np.linalg.pinv(self.jacobian(joint_values))
 
-    def calc_numerical_ik(self, ee, _, tol=0.002, ilimit=100):
+    def calc_numerical_ik(self, ee, initial_guess=None, tol=0.002, ilimit=100):
         mins = np.array([l[0] for l in self.joint_limits])
         maxs = np.array([l[1] for l in self.joint_limits])
 
         for i in range(ilimit):
-            guess = ut.sample_valid_joints(self, ilimit)
+            if initial_guess is not None and i == 0:
+                guess = np.array(initial_guess, dtype=float)
+            else:
+                guess = ut.sample_valid_joints(self, ilimit)
             curr_joint_values = guess
-            for i in range(ilimit):
+            for j in range(ilimit):
                 curr_ee_obj, _ = self.calc_forward_kinematics(curr_joint_values)
 
                 diff = np.array(
@@ -247,6 +249,7 @@ class Hiwonder(FiveDOFRobotTemplate):
 
 
 if __name__ == "__main__":
+    from funrobo_kinematics.core.visualizer import Visualizer, RobotSim
     model = Hiwonder()
     robot = RobotSim(robot_model=model)
     viz = Visualizer(robot=robot)
