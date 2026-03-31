@@ -2,6 +2,236 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+class CubicPolynomial():
+    """
+    Cubic interpolation with position and velocity boundary constraints.
+    """
+
+    def __init__(self, ndof=None):
+        self.ndof = ndof
+
+    def solve(self, q0, qf, qd0, qdf, T):
+        """
+        Compute cubic polynomial coefficients for each DOF.
+
+        Parameters
+        ----------
+        q0 : array-like, shape (ndof,)
+            Initial positions.
+        qf : array-like, shape (ndof,)
+            Final positions.
+        qd0 : array-like or None, shape (ndof,)
+            Initial velocities. If None, assumed zero.
+        qdf : array-like or None, shape (ndof,)
+            Final velocities. If None, assumed zero.
+        T : float
+            Total trajectory duration.
+        """
+        t0, tf = 0, T
+        q0 = np.asarray(q0, dtype=float)
+        qf = np.asarray(qf, dtype=float)
+        qd0 = np.zeros_like(q0) if qd0 is None else np.asarray(qd0, dtype=float)
+        qdf = np.zeros_like(q0) if qdf is None else np.asarray(qdf, dtype=float)
+
+        A = np.array(
+                [[1, t0, t0**2, t0**3],
+                 [0, 1, 2*t0, 3*t0**2],
+                 [1, tf, tf**2, tf**3],
+                 [0, 1, 2*tf, 3*tf**2]
+                ])
+
+        b = np.vstack([
+            q0,
+            qd0,
+            qf,
+            qdf
+        ])
+        self.coeff = np.linalg.solve(A, b)
+
+    def generate(self, t0=0, tf=0, nsteps=100):
+        """
+        Generate position, velocity, and acceleration trajectories.
+
+        Parameters
+        ----------
+        t0 : float
+            Start time.
+        tf : float
+            End time.
+        nsteps : int
+            Number of time samples.
+        """
+        t = np.linspace(t0, tf, nsteps)
+        X = np.zeros((self.ndof, 3, len(t)))
+        for i in range(self.ndof):
+            c = self.coeff[:, i]
+
+            q = c[0] + c[1] * t + c[2] * t**2 + c[3] * t**3
+            qd = c[1] + 2 * c[2] * t + 3 * c[3] * t**2
+            qdd = 2 * c[2] + 6 * c[3] * t
+
+            X[i, 0, :] = q
+            X[i, 1, :] = qd
+            X[i, 2, :] = qdd
+
+        return t, X
+
+
+class QuinticPolynomial():
+    """
+    Quintic interpolation with position, velocity, and acceleration boundary constraints.
+    """
+
+    def __init__(self, ndof=None):
+        self.ndof = ndof
+
+    def solve(self, q0, qf, qd0, qdf, qdd0, qddf, T):
+        """
+        Compute quintic polynomial coefficients for each DOF.
+
+        Parameters
+        ----------
+        q0 : array-like, shape (ndof,)
+            Initial positions.
+        qf : array-like, shape (ndof,)
+            Final positions.
+        qd0 : array-like or None, shape (ndof,)
+            Initial velocities. If None, assumed zero.
+        qdf : array-like or None, shape (ndof,)
+            Final velocities. If None, assumed zero.
+        qdd0 : array-like or None, shape (ndof,)
+            Initial accelerations. If None, assumed zero.
+        qddf : array-like or None, shape (ndof,)
+            Final accelerations. If None, assumed zero.
+        T : float
+            Total trajectory duration.
+        """
+        t0, tf = 0, T
+        q0 = np.asarray(q0, dtype=float)
+        qf = np.asarray(qf, dtype=float)
+        qd0 = np.zeros_like(q0) if qd0 is None else np.asarray(qd0, dtype=float)
+        qdf = np.zeros_like(q0) if qdf is None else np.asarray(qdf, dtype=float)
+        qdd0 = np.zeros_like(q0) if qdd0 is None else np.asarray(qdd0, dtype=float)
+        qddf = np.zeros_like(q0) if qddf is None else np.asarray(qddf, dtype=float)
+
+        A = np.array(
+                [[1, t0, t0**2, t0**3, t0**4, t0**5],
+                 [0, 1, 2*t0, 3*t0**2, 4*t0**3, 5*t0**4],
+                 [0, 0, 2, 6*t0, 12*t0**2, 20*t0**3],
+                 [1, tf, tf**2, tf**3, tf**4, tf**5],
+                 [0, 1, 2*tf, 3*tf**2, 4*tf**3, 5*tf**4],
+                 [0, 0, 2, 6*tf, 12*tf**2, 20*tf**3]
+                ])
+
+        b = np.vstack([
+            q0,
+            qd0,
+            qdd0,
+            qf,
+            qdf,
+            qddf
+        ])
+        self.coeff = np.linalg.solve(A, b)
+
+    def generate(self, t0=0, tf=0, nsteps=100):
+        """
+        Generate position, velocity, and acceleration trajectories.
+
+        Parameters
+        ----------
+        t0 : float
+            Start time.
+        tf : float
+            End time.
+        nsteps : int
+            Number of time samples.
+        """
+        t = np.linspace(t0, tf, nsteps)
+        X = np.zeros((self.ndof, 3, len(t)))
+        for i in range(self.ndof):
+            c = self.coeff[:, i]
+
+            q = c[0] + c[1] * t + c[2] * t**2 + c[3] * t**3 + c[4] * t**4 + c[5] * t**5
+            qd = c[1] + 2 * c[2] * t + 3 * c[3] * t**2 + 4 * c[4] * t**3 + 5 * c[5] * t**4
+            qdd = 2 * c[2] + 6 * c[3] * t + 12 * c[4] * t**2 + 20 * c[5] * t**3
+
+            X[i, 0, :] = q
+            X[i, 1, :] = qd
+            X[i, 2, :] = qdd
+
+        return t, X
+
+class Trapezoidal():
+    """
+    Trapezoidal velocity profile trajectory generation.
+    """
+
+    def __init__(self, ndof=None):
+        self.ndof = ndof
+
+    def solve(self, q0, qf, qd0=None, qdf=None, qdd0=None, qddf=None, T=1):
+        """
+        Compute trapezoidal velocity profile parameters for each DOF.
+
+        Parameters
+        ----------
+        q0 : array-like, shape (ndof,)
+            Initial positions.
+        qf : array-like, shape (ndof,)
+            Final positions.
+        T : float
+            Total trajectory duration.
+        """
+        self.q0 = np.asarray(q0, dtype=float)
+        self.qf = np.asarray(qf, dtype=float)
+
+        h = self.qf - self.q0
+        # Cruise velocity: midpoint of valid range (h/T, 2h/T)
+        self.V = 1.5 * h / T
+        # Blend time: 
+        # tb = (q0 - qf + V*T) / V = 
+        # T - (q0 - qf) / V =
+        # T - h / V =
+        # T - h / (1.5 * h / T) =
+        # T - 2/3 * T =
+        # T/3
+        self.tb = T / 3.0
+        # Acceleration during blend phase
+        self.alpha = self.V / self.tb
+
+    def generate(self, t0=0, tf=0, nsteps=100):
+        """
+        Generate position, velocity, and acceleration trajectories.
+
+        Parameters
+        ----------
+        t0 : float
+            Start time.
+        tf : float
+            End time.
+        nsteps : int
+            Number of time samples.
+        """
+        t = np.linspace(t0, tf, nsteps)
+        X = np.zeros((self.ndof, 3, len(t)))
+
+        for j in range(self.ndof):
+            for k, tk in enumerate(t):
+                if tk < self.tb:
+                    X[j, 0, k] = self.q0[j] + 0.5 * self.alpha[j] * tk**2
+                    X[j, 1, k] = self.alpha[j] * tk
+                    X[j, 2, k] = self.alpha[j]
+                elif tk <= (tf - self.tb):
+                    X[j, 0, k] = self.q0[j] + self.V[j] * (tk - self.tb / 2)
+                    X[j, 1, k] = self.V[j]
+                    X[j, 2, k] = 0
+                else:
+                    X[j, 0, k] = self.qf[j] - 0.5 * self.alpha[j] * (tf - tk)**2
+                    X[j, 1, k] = self.alpha[j] * (tf - tk)
+                    X[j, 2, k] = -self.alpha[j]
+
+        return t, X
+
 
 class MultiAxisTrajectoryGenerator():
     """
@@ -45,9 +275,13 @@ class MultiAxisTrajectoryGenerator():
             T    : duration of the trajectory
         """
         self.T = T
-        self.method.solve(q0, qf, qd0, qdf, T=T)
+        if isinstance(self.method, CubicPolynomial):
+            self.method.solve(q0, qf, qd0, qdf, T=T)
+        elif isinstance(self.method, QuinticPolynomial):
+            self.method.solve(q0, qf, qd0, qdf, qdd0, qddf, T=T)
+        elif isinstance(self.method, Trapezoidal):
+            self.method.solve(q0, qf, T=T)
 
-    
     def generate(self, nsteps=100):
         """
         Generate the trajectory at discrete time steps.
@@ -69,7 +303,7 @@ class MultiAxisTrajectoryGenerator():
         self.sub2 = self.fig.add_subplot(3,1,2)  # Velocity plot
         self.sub3 = self.fig.add_subplot(3,1,3)  # Acceleration plot
 
-        self.fig.set_size_inches(8, 10)    
+        self.fig.set_size_inches(8, 10)
         self.fig.suptitle(self.mode + " Trajectory Generator (Point-to-Point)", fontsize=16)
 
         colors = ['r', 'g', 'b', 'm', 'y']
@@ -160,10 +394,22 @@ class MultiSegmentTrajectoryGenerator():
             else:
                 qdf = (wp[i + 1] - wp[i]) / self.T
 
+            if isinstance(self.method, QuinticPolynomial):
+                qdd0 = np.zeros(self.ndof)
+                qddf = np.zeros(self.ndof)
+
             print(f"Segment {i+1}: q0={q0}, qf={qf}, qd0={qd0}, qdf={qdf}")
 
             model = type(self.method)(ndof=self.ndof) # creates a new instance of the trajectory gen class
-            model.solve(q0, qf, qd0, qdf, T=T)
+
+            if isinstance(self.method, CubicPolynomial):
+                model.solve(q0, qf, qd0, qdf, T=T)
+            elif isinstance(self.method, QuinticPolynomial):
+                model.solve(q0, qf, qd0, qdf, qdd0, qddf, T=T)
+            elif isinstance(self.method, Trapezoidal):
+                model.solve(q0, qf, T=T)
+
+
             self.segment_models.append(model)
 
     
@@ -228,6 +474,7 @@ class MultiSegmentTrajectoryGenerator():
 
         plt.tight_layout()
         plt.show()
+
 
 
 

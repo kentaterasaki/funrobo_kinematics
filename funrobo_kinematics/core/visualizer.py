@@ -620,7 +620,7 @@ class Visualizer:
             method=self.robot.traj_model, mode="task", ndof=3
         )
         mstraj.solve(points, T=1)
-        mstraj.generate(nsteps_per_segment=3)
+        mstraj.generate(nsteps_per_segment=6)
 
         traj = mstraj.X[:,0,:].T # taking the position range of X and transposing to get (N, ndof)
 
